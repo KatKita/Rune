@@ -25,6 +25,7 @@ rune.Run = function(code)
 	if not ok then
 		warn("rune runtime error:", err)
 	end
+	return tostring(ok) .. (err and (" " .. tostring(err)) or "")
 end
 
 rune.SetEnv = function(env)
