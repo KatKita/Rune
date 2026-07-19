@@ -3,6 +3,7 @@ local State = {}
 State.VERSION = "1.1.0"
 State.NULL = setmetatable({}, { __tostring = function() return "null" end })
 State.ENV = "OTHER"
+State.DEV_BUILD = false
 State.GLOBAL_1, State.GLOBAL_2, State.GLOBAL_3 = {}, {}, {}
 State.Libraries = {}
 State.Builtins = {}
