@@ -1,6 +1,9 @@
 local State = require(script.Parent.State)
 local Interpreter = require(script.Parent.Interpreter)
 
+-- Ignore this dev test module
+-- Interpreter = require(src.InterpreterV2)
+
 local RuneFuncs = {}
 
 local function builtinPrint(...)
@@ -39,6 +42,11 @@ RuneFuncs.print = builtinPrint
 RuneFuncs.warn = builtinWarn
 RuneFuncs.createlibrary = builtinCreateLibrary
 RuneFuncs.getlibrary = builtinGetLibrary
+
+--[[
+Rune.RuneFuncs.dolib = builtinCreateLibrary
+Rune.RuneFuncs.lib = builtinGetLibrary
+]]
 
 RuneFuncs.type = function(v)
 	if v == State.NULL then return "null" end
@@ -114,7 +122,10 @@ RuneFuncs.os = {
 RuneFuncs.co = coroutine
 RuneFuncs.bit32 = bit32
 RuneFuncs.luaversion = _VERSION
-RuneFuncs.runeversion = State.VERSION
-RuneFuncs._G = _G
+RuneFuncs.runeversion = State.VERSION -- old name for RuneU/runeu (idk there are any scripts that use this anymore, but I'll include it anyway just in case)
+RuneFuncs.runeuversion = State.VERSION
+RuneFuncs.isdevbuild = State.DEV_BUILD -- debug feature (so yeah ignore this)
+-- RuneFuncs._G = _G 
+-- removed _G for security reasons
 
 return RuneFuncs
