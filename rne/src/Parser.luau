@@ -248,6 +248,19 @@ parseStatement = function(p)
 		expect(p, "KEYWORD", "end")
 		return { type = "While", cond = cond, body = body }
 	end
+	if t.type == "KEYWORD" and t.value == "repeat" then
+		advance(p)
+		local body = parseBlock(p, {
+			["until"] = true
+		})
+		expect(p, "KEYWORD", "until")
+		local cond = parseExpr(p)
+		return {
+			type = "Repeat",
+			body = body,
+			cond = cond,
+		}
+	end
 	if t.type == "KEYWORD" and t.value == "for" then
 		advance(p)
 		local var = expect(p, "IDENT").value
@@ -276,9 +289,23 @@ parseStatement = function(p)
 		return { type = "Return", value = hasValue and parseExpr(p) or nil }
 	end
 	local expr = parsePostfix(p)
-	if check(p, "OP", "=") then
-		advance(p)
-		return { type = "Assign", target = expr, value = parseExpr(p) }
+	if check(p, "OP", ",") or check(p, "OP", "=") then
+		local targets = { expr }
+		while check(p, "OP", ",") do
+			advance(p)
+			table.insert(targets, parsePostfix(p))
+		end
+		expect(p, "OP", "=")
+		local values = { parseExpr(p) }
+		while check(p, "OP", ",") do
+			advance(p)
+			table.insert(values, parseExpr(p))
+		end
+		return {
+			type = "Assign",
+			targets = targets,
+			values = values,
+		}
 	end
 	if expr.type ~= "Call" then
 		error("runeu parse error: unexpected expression used as statement")
