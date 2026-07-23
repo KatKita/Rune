@@ -21,7 +21,7 @@ local function expect(p, type_, value)
 	error("runeu parse error: expected " .. type_ .. " " .. tostring(value) .. " got " .. tostring(t.type) .. " " .. tostring(t.value))
 end
 
-local parseExpr, parsePrimary, parsePostfix, parseUnary, parseMul, parseAdd, parseConcat, parseCompare, parseAnd, parseOr, parseBlock, parseStatement, parseIfChain
+local parseExpr, parsePrimary, parsePostfix, parseUnary, parsePower, parseMul, parseAdd, parseConcat, parseCompare, parseAnd, parseOr, parseBlock, parseStatement, parseIfChain
 
 parsePrimary = function(p)
 	local t = peek(p)
@@ -133,11 +133,25 @@ parseUnary = function(p)
 	return parsePostfix(p)
 end
 
-parseMul = function(p)
+parsePower = function(p)
 	local left = parseUnary(p)
+	if check(p, "OP", "^") then
+		local op = advance(p).value
+		left = {
+			type = "Binary",
+			op = op,
+			left = left,
+			right = parsePower(p)
+		}
+	end
+	return left
+end
+
+parseMul = function(p)
+	local left = parsePower(p)
 	while check(p, "OP", "*") or check(p, "OP", "/") or check(p, "OP", "%") do
 		local op = advance(p).value
-		left = { type = "Binary", op = op, left = left, right = parseUnary(p) }
+		left = { type = "Binary", op = op, left = left, right = parsePower(p) }
 	end
 	return left
 end
