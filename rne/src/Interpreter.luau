@@ -8,7 +8,8 @@ local function newScope(parent)
 	return {
 		vars = {},
 		parent = parent,
-		process = parent and parent.process or nil
+		process = parent and parent.process or nil,
+		global = parent and parent.global or nil
 	}
 end
 
@@ -19,6 +20,9 @@ local function checkNotStopped(scope)
 end
 
 local function scopeGet(scope, name)
+	if name == "global" then
+		return scope.global
+	end
 	local s = scope
 	while s do
 		local v = s.vars[name]
