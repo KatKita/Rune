@@ -5,7 +5,17 @@ local Interpreter = {}
 local evalExpr, execStmt, execBlockStmts, callFunction
 
 local function newScope(parent)
-	return { vars = {}, parent = parent }
+	return {
+		vars = {},
+		parent = parent,
+		process = parent and parent.process or nil
+	}
+end
+
+local function checkNotStopped(scope)
+	if State.isProcessStopped(scope) then
+		error("runeu: process stopped", 0)
+	end
 end
 
 local function scopeGet(scope, name)
@@ -17,14 +27,25 @@ local function scopeGet(scope, name)
 		end
 		s = s.parent
 	end
+
+	local process = scope.process
+	if process and process.context then
+		local value = process.context[name]
+		if value ~= nil then
+			return value
+		end
+	end
+
 	local b = State.Builtins[name]
 	if b ~= nil then
 		return b
 	end
+
 	local lib = State.Libraries[name]
 	if lib ~= nil then
 		return lib
 	end
+
 	return State.NULL
 end
 
@@ -55,7 +76,7 @@ local function binaryOp(op, a, b)
 	elseif op == "*" then return (tonumber(a) or 0) * (tonumber(b) or 0)
 	elseif op == "/" then return (tonumber(a) or 0) / (tonumber(b) or 1)
 	elseif op == "%" then return (tonumber(a) or 0) % (tonumber(b) or 1)
-	elseif op == "^" then return (tonumber(a) or 0) ^ (tonumber(b) or 0)
+	elseif op == "^" then return math.pow(tonumber(a) or 0, tonumber(b) or 0)
 	elseif op == ".." then return State.toConcatString(a) .. State.toConcatString(b)
 	elseif op == "==" then return a == b
 	elseif op == "!=" then return a ~= b
@@ -67,16 +88,19 @@ local function binaryOp(op, a, b)
 	return State.NULL
 end
 
-callFunction = function(fn, args)
+callFunction = function(fn, args, scope)
+	if scope then
+		checkNotStopped(scope)
+	end
 	if type(fn) == "function" then
 		return State.wrapNil(fn(table.unpack(args)))
 	end
 	if type(fn) == "table" and fn.__isFunction then
-		local scope = newScope(fn.closure)
+		local fnScope = newScope(fn.closure)
 		for i, pname in ipairs(fn.params) do
-			scope.vars[pname] = args[i]
+			fnScope.vars[pname] = args[i]
 		end
-		local signal, value = execBlockStmts(fn.body, scope)
+		local signal, value = execBlockStmts(fn.body, fnScope)
 		if signal == "return" then
 			return State.wrapNil(value)
 		end
@@ -94,6 +118,7 @@ execBlockStmts = function(stmts, scope)
 end
 
 execStmt = function(node, scope)
+	checkNotStopped(scope)
 	local kind = node.type
 	if kind == "ExprStmt" then
 		evalExpr(node.expr, scope)
@@ -127,6 +152,7 @@ execStmt = function(node, scope)
 		return nil, nil
 	elseif kind == "While" then
 		while State.toBool(evalExpr(node.cond, scope)) do
+			checkNotStopped(scope)
 			local signal, value = execBlockStmts(node.body, newScope(scope))
 			if signal == "return" then return signal, value end
 			if signal == "break" then break end
@@ -134,6 +160,7 @@ execStmt = function(node, scope)
 		return nil, nil
 	elseif kind == "Repeat" then
 		repeat
+			checkNotStopped(scope)
 			local signal, value = execBlockStmts(node.body, newScope(scope))
 			if signal == "return" then
 				return signal, value
@@ -155,6 +182,7 @@ execStmt = function(node, scope)
 			error("runeu: 'for' step cannot be zero")
 		end
 		for i = startV, stopV, stepV do
+			checkNotStopped(scope)
 			local loopScope = newScope(scope)
 			loopScope.vars[node.var] = i
 			local signal, value = execBlockStmts(node.body, loopScope)
@@ -229,6 +257,14 @@ evalExpr = function(node, scope)
 		if type(base) ~= "table" and type(base) ~= "userdata" then
 			error("runeu: attempt to index a " .. type(base) .. " value")
 		end
+		-- rnesandbox: block reads of specific protected library members,
+		-- e.g. rune.Sandbox.ProtectMember("rbx", "destroy")
+		if node.base.type == "Identifier" and type(key) == "string" then
+			local lib = State.Libraries[node.base.name]
+			if lib == base and State.isMemberProtected(node.base.name, key) then
+				error("rnesandbox: '" .. node.base.name .. "." .. key .. "' is protected and cannot be accessed")
+			end
+		end
 		local ok, value = pcall(function()
 			return base[key]
 		end)
@@ -248,7 +284,7 @@ evalExpr = function(node, scope)
 		if callee == State.NULL then
 			error("runeu: attempt to call nil value")
 		end
-		return callFunction(callee, args)
+		return callFunction(callee, args, scope)
 	end
 	error("runeu: unknown expression '" .. tostring(kind) .. "'")
 end
