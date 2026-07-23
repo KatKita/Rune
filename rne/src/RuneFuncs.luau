@@ -29,8 +29,11 @@ local function builtinCreateLibrary(name)
 		warn("runeu: library '" .. tostring(name) .. "' already exists")
 		return State.Libraries[name]
 	end
+
 	local lib = {}
 	State.Libraries[name] = lib
+	State.Builtins[name] = lib
+
 	return lib
 end
 
